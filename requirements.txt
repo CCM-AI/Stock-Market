@@ -1,5 +1,5 @@
-plotly
 streamlit
-pandas
-scikit-learn
 requests
+pandas
+numpy
+scikit-learn
