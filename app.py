@@ -4,56 +4,54 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 import numpy as np
 
-# File uploader for CSV with closing prices
+# Title and Description
+st.title("Saudi Stock Market Price Prediction")
+st.write("""
+This app predicts the likelihood of stock price increase at the next market opening based on historical data.
+""")
+
+# File upload for CSV with closing prices
+st.subheader("Upload Daily Closing Prices CSV")
+
 uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
 
 if uploaded_file is not None:
     # Load the CSV file into a DataFrame
     df = pd.read_csv(uploaded_file)
     
-    # Convert the 'Close' column to numeric (in case it's a string)
-    df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
+    # Display the first few rows of the data
+    st.write("Here is the data you've uploaded:")
+    st.write(df.head())
 
-    # Feature Engineering: calculate previous close and volume change
-    df['Prev_Close'] = df['Close'].shift(1)
-    df['Volume_Change'] = (df['Close'] - df['Prev_Close']) / df['Prev_Close'] * 100
+    # Check if the required columns (Date, Stock, Closing Price) are in the uploaded file
+    if 'Date' in df.columns and 'Stock' in df.columns and 'Close' in df.columns:
+        # Feature Engineering and Predictions Logic
+        st.write("Proceeding with feature engineering and predictions...")
 
-    # Drop the first row since it will have NaN values in 'Prev_Close'
-    df = df.dropna()
-
-    # Check if 'Close' and 'Prev_Close' columns are available
-    if 'Prev_Close' in df.columns:
-        # Prepare the target (price increase or decrease)
-        y = np.where(df['Close'].shift(-1) > df['Close'], 1, 0)  # 1 if price increases, else 0
+        # Simple feature engineering example
+        df['Prev_Close'] = df['Close'].shift(1)
+        df['Volume_Change'] = (df['Close'] - df['Prev_Close']) / df['Prev_Close'] * 100
         
-        # Ensure there's both 1 and 0 in the target variable (y)
-        if len(np.unique(y)) > 1:  # Check if both classes (increase and decrease) exist
-            # Train the model using a Random Forest Classifier
-            model = RandomForestClassifier(n_estimators=100)
-            X = df[['Prev_Close', 'Volume_Change']]  # Example features
-            model.fit(X, y)
+        # Mock prediction model (RandomForestClassifier)
+        model = RandomForestClassifier(n_estimators=100)
+        X = df[['Prev_Close', 'Volume_Change']]  # Example features
+        y = np.where(df['Close'].shift(-1) > df['Close'], 1, 0)  # Example target (price increase)
+        model.fit(X, y)
 
-            # Get predicted probabilities
-            predictions = model.predict_proba(X)
+        predictions = model.predict_proba(X)
+        confidence = predictions[:, 1]  # Confidence of price increase
 
-            # Check the number of classes
-            if predictions.shape[1] > 1:
-                confidence = predictions[:, 1]  # Confidence of price increase (class 1)
-            else:
-                confidence = predictions[:, 0]  # If only one class, return the confidence for class 0
+        # Display confidence of price increase
+        st.subheader("Confidence of Price Increase at Next Market Open")
+        st.write(confidence)
 
-            # Display the confidence of price increase
-            st.subheader("Confidence of Price Increase at Next Market Open")
-            st.write(confidence)
+        # Plotting confidence scores for each stock
+        fig, ax = plt.subplots()
+        ax.plot(df['Date'], confidence, label='Confidence of Increase')
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Confidence")
+        ax.set_title("Predicted Confidence for Stock Price Increase")
+        st.pyplot(fig)
 
-            # Plotting confidence scores
-            fig, ax = plt.subplots()
-            ax.plot(df['Prev_Close'], confidence, label='Confidence of Increase')
-            ax.set_xlabel("Previous Close Price")
-            ax.set_ylabel("Confidence")
-            ax.set_title("Predicted Confidence for Stock Price Increase")
-            st.pyplot(fig)
-        else:
-            st.error("The dataset does not contain both price increase and decrease classes. Please ensure that your dataset has diverse stock movements.")
     else:
-        st.error("The required columns ('Close' and 'Prev_Close') are missing in the data.")
+        st.error("Uploaded CSV must contain 'Date', 'Stock', and 'Close' columns.")
