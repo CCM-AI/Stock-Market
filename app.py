@@ -1,27 +1,18 @@
 import streamlit as st
 import pandas as pd
-import requests
-import numpy as np
+import yfinance as yf
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error
+import numpy as np
 
-# Function to fetch stock data using Alpha Vantage API
-def get_stock_data(symbol, api_key):
-    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbol}&apikey={api_key}"
-    response = requests.get(url)
-    data = response.json()
-
-    if "Time Series (Daily)" in data:
-        df = pd.DataFrame.from_dict(data['Time Series (Daily)'], orient='index')
-        df['Close'] = pd.to_numeric(df['Close'])
-        df['Open'] = pd.to_numeric(df['1. open'])
-        df['Date'] = pd.to_datetime(df.index)
-        df = df[['Date', 'Open', 'Close']].sort_values(by='Date')
-        return df
-    else:
-        st.error(f"Error: {data.get('Note', 'No data found.')}")
-        return None
+# Function to fetch stock data using Yahoo Finance
+def get_stock_data(symbol):
+    # Download the stock data from Yahoo Finance (using the '.SE' suffix for Saudi stocks)
+    df = yf.download(symbol, period="60d")  # Last 60 days of data
+    df['Date'] = df.index
+    df.reset_index(drop=True, inplace=True)
+    return df
 
 # Feature engineering to add previous day's data and moving averages
 def add_features(df):
@@ -52,12 +43,11 @@ def train_model(stock_data):
 # Streamlit interface
 st.title("Saudi Stock Market Daily Opening Price Prediction")
 
-# Input for API key and stock symbol
-api_key = st.text_input("Enter your Alpha Vantage API Key")
-symbol = st.text_input("Enter Stock Symbol (e.g., TADAWUL:1010)")
+# Input for stock symbol
+symbol = st.text_input("Enter Stock Symbol (e.g., '1120.SE' for Al Rajhi Bank)")
 
-if api_key and symbol:
-    stock_data = get_stock_data(symbol, api_key)
+if symbol:
+    stock_data = get_stock_data(symbol)
     if stock_data is not None:
         st.write("Stock Data Preview:")
         st.write(stock_data.tail())
