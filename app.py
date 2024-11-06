@@ -1,59 +1,109 @@
-import streamlit as st
+
+import requests
 import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.ensemble import RandomForestClassifier
-import numpy as np
+from bs4 import BeautifulSoup
+from selenium import webdriver
 
-# File uploader for CSV with closing prices
-uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
+import os
+import time
+from time import sleep
+from datetime import date
 
-if uploaded_file is not None:
-    # Load the CSV file into a DataFrame
-    df = pd.read_csv(uploaded_file)
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
+
+
+def get_text(html):
+    soup = BeautifulSoup(html, 'lxml')
+    rows= soup.find_all('tbody', attrs={'class':"mi-table__tbody"})
+    return rows
+
+def get_data(rows):
+    data=[]
+    for row in rows:
+        cols = row.find_all('td')
+        cols = [ele.text.strip() for ele in cols]
+        data.append([ele for ele in cols])
+    return data
+
+def get_columns(data, company, stock, sector, last_price, percent_change, last_update):
+    for col in range(6):
+        for col_num in range(col,500, 6):
+            try:
+                if col == 0:
+                    company.append(data[0][col_num])
+                elif col == 1:
+                    stock.append(data[0][col_num])
+                elif col == 2:
+                    sector.append(data[0][col_num])
+                elif col == 3:
+                    last_price.append(data[0][col_num])
+                elif col == 4:
+                    percent_change.append(data[0][col_num])
+                elif col == 5:
+                    last_update.append(data[0][col_num])
+            except:
+                break
+    return company, stock, sector, last_price, percent_change, last_update
+
+
+if __name__ == "__main__":
+
+    resp = requests.get('https://www.mubasher.info/countries/sa/companies')
+    resp.raise_for_status()
+
+    EXE_PATH = 'C:/webdrivers/chromedriver.exe'
+
+    browser = webdriver.Chrome(executable_path=EXE_PATH)
+    browser.get('https://www.mubasher.info/countries/sa/companies')
+
+    delay = 3 # seconds
+    try:
+        element = WebDriverWait(browser, delay).until(EC.presence_of_element_located((By.LINK_TEXT, """التالي""")))
+        print("Page is ready!")
+    except TimeoutException:
+        print("Loading took too much time!\nPlease retry again")
+
+    company= []
+    stock=[]
+    sector=[]
+    last_price=[]
+    percent_change=[]
+    last_update=[]
+    i=1
+    while True:
+        sleep(2)
+        data = []
+        html = browser.page_source
+        rows= get_text(html)
+        table_data= get_data(rows)
+        company, stock, sector, last_price, percent_change, last_update= \
+        get_columns(table_data, company, stock, sector, last_price, percent_change, last_update)
+        sleep(3)
+        print(str(i) + '.'*i*3)
+        i+=1
+        try:
+            element = browser.find_element_by_link_text("""التالي""")
+            browser.execute_script("arguments[0].click();", element)
+        except:
+            break
+
+    browser.close()
+    browser.quit()
     
-    # Convert the 'Close' column to numeric (in case it's a string)
-    df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
-
-    # Feature Engineering: calculate previous close and volume change
-    df['Prev_Close'] = df['Close'].shift(1)
-    df['Volume_Change'] = (df['Close'] - df['Prev_Close']) / df['Prev_Close'] * 100
-
-    # Drop the first row since it will have NaN values in 'Prev_Close'
-    df = df.dropna()
-
-    # Check if 'Close' and 'Prev_Close' columns are available
-    if 'Prev_Close' in df.columns:
-        # Prepare the target (price increase or decrease)
-        y = np.where(df['Close'].shift(-1) > df['Close'], 1, 0)  # 1 if price increases, else 0
+    data_dict= {'الشركة': company,'السهم': stock, 'القطاع':sector, 'آخر سعر':last_price, 'نسبة التغيير':percent_change, 'آخر تحديث':last_update}
+    df = pd.DataFrame.from_dict(data_dict, orient='index').T
+    
+    t = time.localtime()
+    folder_dir= date.today().strftime("%Y/%m")
+    filename = time.strftime('%d-%b-%Y', t)
+    
+    if os.path.isdir(folder_dir):
+        df.to_excel(folder_dir + '/' + filename + '.xlsx')
         
-        # Ensure there's both 1 and 0 in the target variable (y)
-        if len(np.unique(y)) > 1:  # Check if both classes (increase and decrease) exist
-            # Train the model using a Random Forest Classifier
-            model = RandomForestClassifier(n_estimators=100)
-            X = df[['Prev_Close', 'Volume_Change']]  # Example features
-            model.fit(X, y)
-
-            # Get predicted probabilities
-            predictions = model.predict_proba(X)
-
-            # Check the number of classes
-            if predictions.shape[1] > 1:
-                confidence = predictions[:, 1]  # Confidence of price increase (class 1)
-            else:
-                confidence = predictions[:, 0]  # If only one class, return the confidence for class 0
-
-            # Display the confidence of price increase
-            st.subheader("Confidence of Price Increase at Next Market Open")
-            st.write(confidence)
-
-            # Plotting confidence scores
-            fig, ax = plt.subplots()
-            ax.plot(df['Prev_Close'], confidence, label='Confidence of Increase')
-            ax.set_xlabel("Previous Close Price")
-            ax.set_ylabel("Confidence")
-            ax.set_title("Predicted Confidence for Stock Price Increase")
-            st.pyplot(fig)
-        else:
-            st.error("The dataset does not contain both price increase and decrease classes. Please ensure that your dataset has diverse stock movements.")
     else:
-        st.error("The required columns ('Close' and 'Prev_Close') are missing in the data.")
+        os.makedirs(folder_dir)
+        df.to_excel(folder_dir + '/' + filename + '.xlsx')
+    print('............................Done............................')
