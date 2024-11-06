@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.ensemble import RandomForestClassifier
-import numpy as np
 
 # Title and Description
 st.title("Saudi Stock Market Price Prediction")
@@ -19,6 +17,9 @@ if uploaded_file is not None:
     # Load the CSV file into a DataFrame
     df = pd.read_csv(uploaded_file)
     
+    # Convert the 'Close' column to numeric (in case it's a string)
+    df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
+
     # Display the first few rows of the data
     st.write("Here is the data you've uploaded:")
     st.write(df.head())
@@ -33,6 +34,9 @@ if uploaded_file is not None:
         df['Volume_Change'] = (df['Close'] - df['Prev_Close']) / df['Prev_Close'] * 100
         
         # Mock prediction model (RandomForestClassifier)
+        from sklearn.ensemble import RandomForestClassifier
+        import numpy as np
+
         model = RandomForestClassifier(n_estimators=100)
         X = df[['Prev_Close', 'Volume_Change']]  # Example features
         y = np.where(df['Close'].shift(-1) > df['Close'], 1, 0)  # Example target (price increase)
