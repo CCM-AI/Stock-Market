@@ -1,7 +1,5 @@
+plotly
 streamlit
 pandas
-numpy
-matplotlib
-pandas_ta
 scikit-learn
-pip install plotly
+requests
